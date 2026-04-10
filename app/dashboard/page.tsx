@@ -2,70 +2,61 @@
 import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase'
 
-type Negocio = {
+type Opportunity = {
   id: string
-  asegurado: string
-  actividad: string
-  actividad_categoria: string
+  title: string
+  category: string
   ramo: string
-  ubicacion: string
-  pais: string
-  suma_asegurada_usd: number
-  prima_neta_estimada: number
-  brokerage_usd: number
-  brokerage_pct: number
-  estado: string
-  fecha_ingreso: string
-  ultima_actualizacion: string
-  vigencia_desde: string
-  vigencia_hasta: string
-  deadline_presentacion: string
-  broker_origen: string
+  insured_name: string
+  country: string
+  currency: string
+  limit_amount: number
+  estimated_premium: number
+  brokerage_estimated: number
+  policy_start: string
+  policy_end: string
+  deadline_at: string
+  stage: string
+  priority_score: number
+  owner: string
+  updated_at: string
+  last_activity_at: string
+  days_without_movement_live: number
+  days_to_deadline: number
 }
 
-const ESTADO_COLORS: Record<string, string> = {
-  NUEVO: 'bg-blue-500/20 text-blue-300 border-blue-500/30',
-  EN_ANALISIS: 'bg-yellow-500/20 text-yellow-300 border-yellow-500/30',
-  COTIZADO: 'bg-purple-500/20 text-purple-300 border-purple-500/30',
-  ORDEN_FIRME: 'bg-orange-500/20 text-orange-300 border-orange-500/30',
-  CERRADO_GANADO: 'bg-green-500/20 text-green-300 border-green-500/30',
-  CERRADO_PERDIDO: 'bg-red-500/20 text-red-300 border-red-500/30',
+type KPIs = {
+  total: number
+  nuevos: number
+  en_proceso: number
+  ganados: number
+  sin_mov_mas_3_dias: number
+  deadline_menos_7_dias: number
+  prima_estimada_total: number
+  brokerage_estimado_total: number
 }
 
-const ESTADO_LABELS: Record<string, string> = {
-  NUEVO: 'Nuevo',
-  EN_ANALISIS: 'En análisis',
-  COTIZADO: 'Cotizado',
-  ORDEN_FIRME: 'Orden en firme',
-  CERRADO_GANADO: '✅ Cerrado',
-  CERRADO_PERDIDO: '❌ Perdido',
+const STAGE_COLORS: Record<string, string> = {
+  new: 'bg-blue-500/20 text-blue-300 border-blue-500/30',
+  in_review: 'bg-yellow-500/20 text-yellow-300 border-yellow-500/30',
+  quoted: 'bg-purple-500/20 text-purple-300 border-purple-500/30',
+  bound: 'bg-green-500/20 text-green-300 border-green-500/30',
+  closed: 'bg-red-500/20 text-red-300 border-red-500/30',
 }
 
-const CATEGORIAS = [
-  'Todas',
-  'Agronegocios/Granos',
-  'Distribución/Logística',
-  'Retail/Supermercados',
-  'Manufactura Alimentos',
-  'Manufactura Industrial',
-  'Construcción/Ing.Civil',
-  'Oil&Gas/Energía',
-  'Siderurgia/Minería',
-  'Product Recall/CPI',
-  'Servicios Profesionales',
-  'Tecnología/Software',
-  'Otras',
-]
-
-function diasParaDeadline(fecha: string | null) {
-  if (!fecha) return null
-  const diff = new Date(fecha).getTime() - Date.now()
-  return Math.ceil(diff / (1000 * 60 * 60 * 24))
+const STAGE_LABELS: Record<string, string> = {
+  new: 'Nuevo',
+  in_review: 'En análisis',
+  quoted: 'Cotizado',
+  bound: 'Cerrado',
+  closed: 'Perdido',
 }
 
-function diasSinMov(ultima: string) {
-  const diff = Date.now() - new Date(ultima).getTime()
-  return Math.floor(diff / (1000 * 60 * 60 * 24))
+function fmtUSD(n: number | null) {
+  if (!n) return '—'
+  if (n >= 1000000000) return `USD ${(n/1000000000).toFixed(1)}B`
+  if (n >= 1000000) return `USD ${(n/1000000).toFixed(1)}M`
+  return `USD ${n.toLocaleString('es-AR')}`
 }
 
 function fmtDate(d: string | null) {
@@ -73,52 +64,34 @@ function fmtDate(d: string | null) {
   return new Date(d).toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', year: 'numeric' })
 }
 
-function fmtUSD(n: number | null) {
-  if (!n) return '—'
-  return `USD ${n.toLocaleString('es-AR')}`
-}
-
 export default function Dashboard() {
-  const [negocios, setNegocios] = useState<Negocio[]>([])
+  const [opportunities, setOpportunities] = useState<Opportunity[]>([])
+  const [kpis, setKpis] = useState<KPIs | null>(null)
   const [loading, setLoading] = useState(true)
-  const [filtroEstado, setFiltroEstado] = useState('TODOS')
-  const [filtroCategoria, setFiltroCategoria] = useState('Todas')
+  const [filtroStage, setFiltroStage] = useState('TODOS')
+  const [filtroRamo, setFiltroRamo] = useState('Todos')
   const [busqueda, setBusqueda] = useState('')
 
   useEffect(() => {
     const supabase = createClient()
-    supabase
-      .from('negocios')
-      .select('*')
-      .order('fecha_ingreso', { ascending: false })
-      .then(({ data, error }) => {
-        if (error) console.error(error)
-        else setNegocios(data || [])
-        setLoading(false)
-      })
+    Promise.all([
+      supabase.from('pipeline_dashboard_view').select('*').order('updated_at', { ascending: false }),
+      supabase.from('pipeline_kpis_view').select('*').single(),
+    ]).then(([{ data: opps }, { data: k }]) => {
+      setOpportunities(opps || [])
+      setKpis(k)
+      setLoading(false)
+    })
   }, [])
 
-  const filtrados = negocios.filter(n => {
-    const matchEstado = filtroEstado === 'TODOS' || n.estado === filtroEstado
-    const matchCat = filtroCategoria === 'Todas' || n.actividad_categoria === filtroCategoria
-    const matchBusq = !busqueda || n.asegurado.toLowerCase().includes(busqueda.toLowerCase())
-    return matchEstado && matchCat && matchBusq
+  const ramos = ['Todos', ...Array.from(new Set(opportunities.map(o => o.ramo).filter(Boolean)))]
+
+  const filtrados = opportunities.filter(o => {
+    const matchStage = filtroStage === 'TODOS' || o.stage === filtroStage
+    const matchRamo = filtroRamo === 'Todos' || o.ramo === filtroRamo
+    const matchBusq = !busqueda || o.insured_name?.toLowerCase().includes(busqueda.toLowerCase()) || o.title?.toLowerCase().includes(busqueda.toLowerCase())
+    return matchStage && matchRamo && matchBusq
   })
-
-  const totalPrima = filtrados.reduce((s, n) => s + (n.prima_neta_estimada || 0), 0)
-  const totalBrokerage = filtrados.reduce((s, n) => s + (n.brokerage_usd || 0), 0)
-
-  const stats = {
-    total: negocios.length,
-    nuevos: negocios.filter(n => n.estado === 'NUEVO').length,
-    enProceso: negocios.filter(n => ['EN_ANALISIS', 'COTIZADO', 'ORDEN_FIRME'].includes(n.estado)).length,
-    cerrados: negocios.filter(n => n.estado === 'CERRADO_GANADO').length,
-    alertasMov: negocios.filter(n => diasSinMov(n.ultima_actualizacion) > 3).length,
-    alertasDeadline: negocios.filter(n => {
-      const d = diasParaDeadline(n.deadline_presentacion)
-      return d !== null && d <= 7 && d >= 0
-    }).length,
-  }
 
   return (
     <main className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-950 to-slate-900 p-4">
@@ -126,39 +99,38 @@ export default function Dashboard() {
 
         {/* Header */}
         <div className="flex items-center justify-between mb-6">
-          <div className="flex items-center gap-3">
-            <span className="text-3xl">🧊</span>
-            <div>
-              <h1 className="text-xl font-bold text-white">Pipeline de Negocios</h1>
-              <p className="text-slate-400 text-xs">nizur.io — Powered by Jaina</p>
-            </div>
+          <div>
+            <h1 className="text-xl font-bold text-white">Pipeline de Negocios</h1>
+            <p className="text-slate-500 text-xs">nizur.io</p>
           </div>
-          <a href="mailto:flow@nizur.io" className="bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 rounded-lg text-sm font-medium transition flex items-center gap-2">
-            <span>+</span> Nuevo submission
+          <a href="mailto:flow@nizur.io" className="bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 rounded-lg text-sm font-medium transition">
+            + Nuevo submission
           </a>
         </div>
 
-        {/* Stats */}
-        <div className="grid grid-cols-3 md:grid-cols-6 gap-3 mb-6">
-          {[
-            { label: 'Total', value: stats.total, color: 'text-white', sub: '' },
-            { label: 'Nuevos', value: stats.nuevos, color: 'text-blue-400', sub: '' },
-            { label: 'En proceso', value: stats.enProceso, color: 'text-yellow-400', sub: '' },
-            { label: 'Ganados', value: stats.cerrados, color: 'text-green-400', sub: '' },
-            { label: '⚠️ Sin mov.', value: stats.alertasMov, color: 'text-red-400', sub: '>3 días' },
-            { label: '🔔 Deadline', value: stats.alertasDeadline, color: 'text-orange-400', sub: '<7 días' },
-          ].map(s => (
-            <div key={s.label} className="bg-slate-800/60 border border-slate-700 rounded-xl p-3">
-              <div className={`text-2xl font-bold ${s.color}`}>{s.value}</div>
-              <div className="text-slate-400 text-xs mt-0.5">{s.label}</div>
-              {s.sub && <div className="text-slate-500 text-xs">{s.sub}</div>}
-            </div>
-          ))}
-        </div>
+        {/* KPIs */}
+        {kpis && (
+          <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-3 mb-6">
+            {[
+              { label: 'Total', value: kpis.total, color: 'text-white' },
+              { label: 'Nuevos', value: kpis.nuevos, color: 'text-blue-400' },
+              { label: 'En proceso', value: kpis.en_proceso, color: 'text-yellow-400' },
+              { label: 'Ganados', value: kpis.ganados, color: 'text-green-400' },
+              { label: 'Sin mov. +3d', value: kpis.sin_mov_mas_3_dias, color: 'text-red-400' },
+              { label: 'Deadline <7d', value: kpis.deadline_menos_7_dias, color: 'text-orange-400' },
+              { label: 'Prima total', value: fmtUSD(kpis.prima_estimada_total), color: 'text-cyan-400', small: true },
+              { label: 'Brokerage', value: fmtUSD(kpis.brokerage_estimado_total), color: 'text-emerald-400', small: true },
+            ].map(k => (
+              <div key={k.label} className="bg-slate-800/60 border border-slate-700 rounded-xl p-3">
+                <div className={`font-bold ${k.color} ${(k as any).small ? 'text-base' : 'text-2xl'}`}>{k.value}</div>
+                <div className="text-slate-400 text-xs mt-0.5">{k.label}</div>
+              </div>
+            ))}
+          </div>
+        )}
 
         {/* Filtros */}
         <div className="flex flex-wrap gap-2 mb-4 items-center">
-          {/* Búsqueda */}
           <input
             type="text"
             placeholder="Buscar asegurado..."
@@ -166,36 +138,24 @@ export default function Dashboard() {
             onChange={e => setBusqueda(e.target.value)}
             className="bg-slate-800 border border-slate-600 rounded-lg px-3 py-1.5 text-white text-sm placeholder-slate-500 focus:outline-none focus:border-blue-500 w-48"
           />
-
-          {/* Estado */}
           <div className="flex gap-1 flex-wrap">
-            {['TODOS', 'NUEVO', 'EN_ANALISIS', 'COTIZADO', 'ORDEN_FIRME', 'CERRADO_GANADO'].map(e => (
-              <button key={e} onClick={() => setFiltroEstado(e)}
-                className={`px-2.5 py-1 rounded-lg text-xs font-medium border transition ${filtroEstado === e ? 'bg-blue-600 text-white border-blue-500' : 'bg-slate-800 text-slate-400 border-slate-700 hover:border-slate-500'}`}>
-                {e === 'TODOS' ? 'Todos' : ESTADO_LABELS[e]}
+            {['TODOS', 'new', 'in_review', 'quoted', 'bound', 'closed'].map(s => (
+              <button key={s} onClick={() => setFiltroStage(s)}
+                className={`px-2.5 py-1 rounded-lg text-xs font-medium border transition ${filtroStage === s ? 'bg-blue-600 text-white border-blue-500' : 'bg-slate-800 text-slate-400 border-slate-700 hover:border-slate-500'}`}>
+                {s === 'TODOS' ? 'Todos' : STAGE_LABELS[s]}
               </button>
             ))}
           </div>
-
-          {/* Categoría */}
-          <select value={filtroCategoria} onChange={e => setFiltroCategoria(e.target.value)}
+          <select value={filtroRamo} onChange={e => setFiltroRamo(e.target.value)}
             className="bg-slate-800 border border-slate-600 rounded-lg px-3 py-1.5 text-slate-300 text-xs focus:outline-none focus:border-blue-500">
-            {CATEGORIAS.map(c => <option key={c} value={c}>{c}</option>)}
+            {ramos.map(r => <option key={r} value={r}>{r}</option>)}
           </select>
         </div>
-
-        {/* Totales filtrados */}
-        {(totalPrima > 0 || totalBrokerage > 0) && (
-          <div className="flex gap-4 mb-4 text-sm">
-            <span className="text-slate-400">Prima estimada: <span className="text-white font-medium">{fmtUSD(totalPrima)}</span></span>
-            <span className="text-slate-400">Brokerage: <span className="text-green-400 font-medium">{fmtUSD(totalBrokerage)}</span></span>
-          </div>
-        )}
 
         {/* Tabla */}
         <div className="bg-slate-800/60 border border-slate-700 rounded-2xl overflow-hidden">
           {loading ? (
-            <div className="text-center text-slate-400 py-16 text-sm">Cargando negocios...</div>
+            <div className="text-center text-slate-400 py-16 text-sm">Cargando...</div>
           ) : filtrados.length === 0 ? (
             <div className="text-center text-slate-400 py-16 text-sm">No hay negocios con estos filtros.</div>
           ) : (
@@ -203,55 +163,45 @@ export default function Dashboard() {
               <table className="w-full min-w-[900px]">
                 <thead>
                   <tr className="border-b border-slate-700">
-                    {['Asegurado', 'Categoría', 'Ramo', 'Límite / Prima', 'Vigencia', 'Deadline', 'Estado', 'Sin mov.'].map(h => (
+                    {['Asegurado', 'Ramo', 'Límite', 'Prima', 'Deadline', 'Estado', 'Sin mov.'].map(h => (
                       <th key={h} className="text-left text-slate-400 text-xs font-medium px-4 py-3">{h}</th>
                     ))}
                   </tr>
                 </thead>
                 <tbody>
-                  {filtrados.map((neg, i) => {
-                    const dias = diasSinMov(neg.ultima_actualizacion)
-                    const dlDias = diasParaDeadline(neg.deadline_presentacion)
-                    const dlAlert = dlDias !== null && dlDias <= 7 && dlDias >= 0
+                  {filtrados.map((o, i) => {
+                    const dlAlert = o.days_to_deadline !== null && o.days_to_deadline <= 7 && o.days_to_deadline >= 0
+                    const movAlert = o.days_without_movement_live > 3
                     return (
-                      <tr key={neg.id} className={`border-b border-slate-700/50 hover:bg-slate-700/30 transition cursor-pointer ${i % 2 === 0 ? '' : 'bg-slate-800/20'}`}>
+                      <tr key={o.id} className={`border-b border-slate-700/50 hover:bg-slate-700/30 transition cursor-pointer ${i % 2 === 0 ? '' : 'bg-slate-800/20'}`}>
                         <td className="px-4 py-3">
-                          <div className="text-white font-medium text-sm">{neg.asegurado}</div>
-                          <div className="text-slate-500 text-xs">{neg.pais || neg.ubicacion}</div>
+                          <div className="text-white font-medium text-sm">{o.insured_name || o.title}</div>
+                          <div className="text-slate-500 text-xs">{o.country}</div>
                         </td>
                         <td className="px-4 py-3">
-                          <span className="text-slate-300 text-xs bg-slate-700/50 px-2 py-0.5 rounded">
-                            {neg.actividad_categoria || '—'}
-                          </span>
+                          <span className="text-slate-300 text-xs bg-slate-700/50 px-2 py-0.5 rounded">{o.ramo || '—'}</span>
                         </td>
-                        <td className="px-4 py-3 text-slate-300 text-xs">{neg.ramo}</td>
+                        <td className="px-4 py-3 text-slate-300 text-xs">{fmtUSD(o.limit_amount)}</td>
                         <td className="px-4 py-3">
-                          <div className="text-slate-300 text-xs">{fmtUSD(neg.suma_asegurada_usd)}</div>
-                          {neg.prima_neta_estimada > 0 && (
-                            <div className="text-green-400 text-xs">Prima: {fmtUSD(neg.prima_neta_estimada)}</div>
-                          )}
-                        </td>
-                        <td className="px-4 py-3 text-slate-400 text-xs">
-                          {neg.vigencia_desde ? (
-                            <div>{fmtDate(neg.vigencia_desde)}<br/>{fmtDate(neg.vigencia_hasta)}</div>
-                          ) : '—'}
+                          {o.estimated_premium ? (
+                            <span className="text-green-400 text-xs font-medium">{fmtUSD(o.estimated_premium)}</span>
+                          ) : <span className="text-slate-600 text-xs">—</span>}
                         </td>
                         <td className="px-4 py-3">
-                          {neg.deadline_presentacion ? (
-                            <div className={`text-xs font-medium ${dlAlert ? 'text-orange-400' : 'text-slate-400'}`}>
-                              {fmtDate(neg.deadline_presentacion)}
-                              {dlAlert && <span className="ml-1">🔔 {dlDias}d</span>}
-                            </div>
-                          ) : '—'}
+                          {o.deadline_at ? (
+                            <span className={`text-xs font-medium ${dlAlert ? 'text-orange-400' : 'text-slate-400'}`}>
+                              {fmtDate(o.deadline_at)}{dlAlert ? ` 🔔` : ''}
+                            </span>
+                          ) : <span className="text-slate-600 text-xs">—</span>}
                         </td>
                         <td className="px-4 py-3">
-                          <span className={`px-2 py-0.5 rounded text-xs font-medium border ${ESTADO_COLORS[neg.estado] || 'bg-slate-700 text-slate-300 border-slate-600'}`}>
-                            {ESTADO_LABELS[neg.estado] || neg.estado}
+                          <span className={`px-2 py-0.5 rounded text-xs font-medium border ${STAGE_COLORS[o.stage] || 'bg-slate-700 text-slate-300 border-slate-600'}`}>
+                            {STAGE_LABELS[o.stage] || o.stage}
                           </span>
                         </td>
                         <td className="px-4 py-3">
-                          <span className={`text-xs font-medium ${dias > 3 ? 'text-red-400' : 'text-slate-400'}`}>
-                            {dias}d {dias > 3 ? '⚠️' : ''}
+                          <span className={`text-xs font-medium ${movAlert ? 'text-red-400' : 'text-slate-400'}`}>
+                            {o.days_without_movement_live} días {movAlert ? '⚠️' : ''}
                           </span>
                         </td>
                       </tr>
