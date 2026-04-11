@@ -413,6 +413,7 @@ export default function Dashboard() {
   const [kpis, setKpis] = useState<KPIs | null>(null)
   const [loading, setLoading] = useState(true)
   const [authChecked, setAuthChecked] = useState(false)
+  const [sessionUser, setSessionUser] = useState<string | null>(null)
   const [filtroStage, setFiltroStage] = useState('TODOS')
   const [filtroRamo, setFiltroRamo] = useState('Todos')
   const [busqueda, setBusqueda] = useState('')
@@ -424,10 +425,18 @@ export default function Dashboard() {
     // Wait for auth session before querying
     supabase.auth.getSession().then(({ data: { session } }) => {
       setAuthChecked(true)
+      console.log('[dashboard] session:', session?.user?.email, 'expires:', session?.expires_at)
       if (!session) {
-        setLoading(false)
+        console.warn('[dashboard] no session — trying getUser fallback')
+        // Fallback: try getUser which can refresh the session
+        supabase.auth.getUser().then(({ data: { user } }) => {
+          console.log('[dashboard] getUser fallback:', user?.email)
+          if (user) loadData(supabase)
+          else setLoading(false)
+        })
         return
       }
+      setSessionUser(session.user.email || null)
       loadData(supabase)
     })
 
@@ -447,20 +456,21 @@ export default function Dashboard() {
         limit_amount, estimated_premium, brokerage_estimated,
         policy_start, policy_end, deadline_at, priority_score,
         created_at, updated_at, last_activity_at, company_id, submission_id,
-        ramo, category,
-        insureds ( name )
+        ramo, category
       `)
       .order('last_activity_at', { ascending: false })
 
     if (error) {
-      console.error('Error loading opportunities:', error)
+      console.error('Error loading opportunities:', error.message, error.code)
       setLoading(false)
       return
     }
 
+    console.log('[dashboard] loaded opportunities:', rawOpps?.length, rawOpps?.[0])
+
     const opps = ((rawOpps || []) as any[]).map((o: any) => ({
       ...o,
-      insured_name: (o.insureds as any)?.name || o.title,
+      insured_name: o.title,
       country: null,
       currency: 'USD',
       owner_name: null,
@@ -602,8 +612,12 @@ export default function Dashboard() {
                   ? <div>
                       <div className="text-2xl mb-2">📭</div>
                       <div>Pipeline vacío — enviá un submission a <span className="text-blue-400">flow@nizur.io</span></div>
+                      {authChecked && !sessionUser && (
+                        <div className="mt-3 text-orange-400 text-xs">⚠️ Sesión no detectada — <a href="/" className="underline">volvé a loguearte</a></div>
+                      )}
                     </div>
                   : 'No hay negocios con estos filtros.'}
+
               </div>
             ) : (
               <div className="overflow-x-auto">
