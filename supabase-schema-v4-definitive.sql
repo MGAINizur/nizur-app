@@ -805,68 +805,7 @@ from public.opportunities
 where public.can_access_company(company_id)
 group by company_id;
 
--- ============================================================
--- RLS
--- ============================================================
-
-do $rls$
-declare t text;
-begin
-  foreach t in array array[
-    'companies','user_profiles','company_users','insureds','brokers',
-    'markets','market_contacts','submissions','submission_documents','opportunities',
-    'notes','submission_markets','quotes','quote_terms','generated_outputs',
-    'document_versions','missing_information','tasks','activities',
-    'placements','placement_lines','endorsements','endorsement_lines',
-    'financial_documents','premium_adjustments','premium_adjustment_lines',
-    'bordereaux','bordereaux_lines'
-  ]
-  loop
-    execute format('alter table public.%s enable row level security;', t);
-  end loop;
-end $rls$;
-
--- Markets: lectura global para autenticados
-drop policy if exists markets_read_all on public.markets;
-create policy markets_read_all on public.markets for select to authenticated using (true);
-alter table public.markets enable row level security;
-
--- User profiles
-drop policy if exists user_profiles_select on public.user_profiles;
-create policy user_profiles_select on public.user_profiles for select to authenticated
-  using (auth.uid() = auth_user_id or public.is_super_admin(auth.uid()));
-
--- Companies
-drop policy if exists companies_select on public.companies;
-create policy companies_select on public.companies for select to authenticated
-  using (public.can_access_company(id));
-
--- Company users
-drop policy if exists company_users_select on public.company_users;
-create policy company_users_select on public.company_users for select to authenticated
-  using (public.is_super_admin(auth.uid()) or public.can_access_company(company_id));
-
--- Políticas tenant para todas las demás tablas (markets excluido — es global)
-do $rls2$
-declare t text;
-begin
-  foreach t in array array[
-    'insureds','brokers','market_contacts','submissions','submission_documents',
-    'opportunities','notes','submission_markets','quotes','quote_terms',
-    'generated_outputs','document_versions','missing_information',
-    'tasks','activities','placements','placement_lines','endorsements',
-    'endorsement_lines','financial_documents','premium_adjustments',
-    'premium_adjustment_lines','bordereaux','bordereaux_lines'
-  ]
-  loop
-    execute format('
-      drop policy if exists %s_tenant on public.%s;
-      create policy %s_tenant on public.%s
-      for all to authenticated
-      using (public.can_access_company(company_id))
-      with check (public.can_access_company(company_id));
-    ', t, t, t, t);
-  end loop;
-end $rls2$;
+-- RLS: correr supabase-schema-v4-rls-only.sql por separado
+-- (evita conflictos con tablas globales como markets, companies, user_profiles)
 
 commit;
