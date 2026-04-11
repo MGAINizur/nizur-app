@@ -111,11 +111,8 @@ const STAGE_GROUPS = [
 // ─── FORMATTERS ───────────────────────────────────────────────────────────────
 
 function fmtUSD(n: number | null) {
-  if (!n) return '—'
-  if (n >= 1_000_000_000) return `USD ${(n/1_000_000_000).toFixed(1)}B`
-  if (n >= 1_000_000) return `USD ${(n/1_000_000).toFixed(1)}M`
-  if (n >= 1_000) return `USD ${(n/1_000).toFixed(0)}K`
-  return `USD ${n.toLocaleString('es-AR')}`
+  if (n === null || n === undefined || n === 0) return '—'
+  return `USD ${n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
 }
 
 function fmtDate(d: string | null) {
@@ -445,7 +442,7 @@ export default function Dashboard() {
               <table className="w-full min-w-[900px]">
                 <thead>
                   <tr className="border-b border-slate-700">
-                    {['Asegurado', 'Ramo', 'Límite', 'Prima', 'Weight', 'Gap', 'Deadline', 'Sin mov.', 'Estado'].map(h => (
+                    {['Asegurado', 'Ramo', 'Límite', 'Prima', 'Brokerage', 'Weight', 'Brok×W', 'Gap', 'Deadline', 'Sin mov.', 'Estado'].map(h => (
                       <th key={h} className="text-left text-slate-400 text-xs font-medium px-4 py-3">{h}</th>
                     ))}
                   </tr>
@@ -466,10 +463,21 @@ export default function Dashboard() {
                         </td>
                         <td className="px-4 py-3 text-slate-300 text-xs">{fmtUSD(o.limit_amount)}</td>
                         <td className="px-4 py-3">
-                          {o.estimated_premium ? <span className="text-green-400 text-xs font-medium">{fmtUSD(o.estimated_premium)}</span>
+                          {o.estimated_premium
+                            ? <span className="text-green-400 text-xs font-medium">{fmtUSD(o.estimated_premium)}</span>
+                            : <span className="text-slate-600 text-xs">—</span>}
+                        </td>
+                        <td className="px-4 py-3">
+                          {o.brokerage_estimated
+                            ? <span className="text-emerald-400 text-xs">{fmtUSD(o.brokerage_estimated)}</span>
                             : <span className="text-slate-600 text-xs">—</span>}
                         </td>
                         <td className="px-4 py-3 text-slate-400 text-xs">{fmtPct(o.weight_percent)}</td>
+                        <td className="px-4 py-3">
+                          {o.brokerage_estimated && o.weight_percent
+                            ? <span className="text-violet-400 text-xs font-medium">{fmtUSD(o.brokerage_estimated * o.weight_percent / 100)}</span>
+                            : <span className="text-slate-600 text-xs">—</span>}
+                        </td>
                         <td className="px-4 py-3">
                           <div className="flex gap-1 items-center">
                             {o.quotes_count > 0 ? (
