@@ -560,9 +560,17 @@ create table if not exists public.placements (
 );
 
 -- FK diferida para document_versions.placement_id
-alter table public.document_versions
-  add constraint if not exists document_versions_placement_fk
-  foreign key (placement_id) references public.placements(id) on delete set null;
+do $fk$
+begin
+  if not exists (
+    select 1 from pg_constraint
+    where conname = 'document_versions_placement_fk'
+  ) then
+    alter table public.document_versions
+      add constraint document_versions_placement_fk
+      foreign key (placement_id) references public.placements(id) on delete set null;
+  end if;
+end $fk$;
 
 create table if not exists public.placement_lines (
   id uuid primary key default gen_random_uuid(),
