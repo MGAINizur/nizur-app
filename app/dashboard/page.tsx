@@ -371,10 +371,36 @@ export default function Dashboard() {
   useEffect(() => {
     const supabase = createClient()
     Promise.all([
-      supabase.from('pipeline_dashboard_view').select('*').order('last_activity_at', { ascending: false }),
+      // Query opportunities directly (view has RLS auth.uid() issue)
+      supabase.from('opportunities')
+        .select(`
+          id, title, stage, weight_percent, weighted_revenue,
+          limit_amount, estimated_premium, brokerage_estimated,
+          policy_start, policy_end, deadline_at, priority_score,
+          created_at, updated_at, last_activity_at, company_id, submission_id,
+          ramo, category,
+          insureds ( name ),
+          submissions ( source_email )
+        `)
+        .order('last_activity_at', { ascending: false }),
       supabase.from('pipeline_kpis_view').select('*').limit(1).single(),
-    ]).then(([{ data: opps }, { data: k }]) => {
-      setOpportunities(opps || [])
+    ]).then(([{ data: rawOpps, error: e1 }, { data: k }]) => {
+      if (e1) console.error('opps error:', e1)
+      // Normalize joined data
+      const opps = ((rawOpps || []) as any[]).map((o: any) => ({
+        ...o,
+        insured_name: (o.insureds as any)?.name || o.title,
+        country: null,
+        currency: 'USD',
+        owner_name: null,
+        days_without_movement: o.last_activity_at
+          ? Math.floor((Date.now() - new Date(o.last_activity_at).getTime()) / 86400000)
+          : 0,
+        documents_count: 0,
+        missing_open_count: 0,
+        quotes_count: 0,
+      }))
+      setOpportunities(opps)
       setKpis(k)
       setLoading(false)
     })
