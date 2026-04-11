@@ -814,7 +814,7 @@ declare t text;
 begin
   foreach t in array array[
     'companies','user_profiles','company_users','insureds','brokers',
-    'market_contacts','submissions','submission_documents','opportunities',
+    'markets','market_contacts','submissions','submission_documents','opportunities',
     'notes','submission_markets','quotes','quote_terms','generated_outputs',
     'document_versions','missing_information','tasks','activities',
     'placements','placement_lines','endorsements','endorsement_lines',
@@ -846,7 +846,7 @@ drop policy if exists company_users_select on public.company_users;
 create policy company_users_select on public.company_users for select to authenticated
   using (public.is_super_admin(auth.uid()) or public.can_access_company(company_id));
 
--- Políticas tenant para todas las demás tablas
+-- Políticas tenant para todas las demás tablas (markets excluido — es global)
 do $rls2$
 declare t text;
 begin
