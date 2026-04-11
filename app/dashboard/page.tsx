@@ -125,6 +125,24 @@ function fmtPct(n: number | null) {
   return `${n.toFixed(1)}%`
 }
 
+/** Clean insured name: remove " — Ramo" suffix and title-case all-caps names */
+function cleanName(name: string | null): string {
+  if (!name) return '—'
+  // Remove " — Property OAR" or " — RC General" etc suffix
+  let n = name.replace(/\s*—\s*(Property OAR|Property|RC General|Power Generation|Power Gen)[\s\S]*/i, '').trim()
+  // If ALL CAPS, convert to Title Case
+  if (n === n.toUpperCase() && n.length > 6) {
+    n = n.toLowerCase().replace(/(?:^|\s|\/)([a-zà-ÿ])/g, (_: string, c: string) => c.toUpperCase())
+  }
+  return n
+}
+
+/** Clean ramo display */
+function cleanRamo(ramo: string | null): string {
+  if (!ramo) return '—'
+  return ramo.replace(/Property OAR/gi, 'Property').replace(/RC General/gi, 'RC')
+}
+
 // ─── PLACEMENT GAP COMPONENT ─────────────────────────────────────────────────
 
 function PlacementGapBar({ quotes }: { quotes: Quote[] }) {
@@ -188,8 +206,8 @@ function OpportunityModal({ opp, onClose }: { opp: Opportunity, onClose: () => v
               </span>
               <span className="text-slate-500 text-xs">{opp.ramo}</span>
             </div>
-            <h2 className="text-white font-bold text-lg">{opp.insured_name || opp.title}</h2>
-            <div className="text-slate-400 text-sm mt-0.5">{opp.country} · {fmtUSD(opp.limit_amount)} límite · Weight {fmtPct(opp.weight_percent)}</div>
+            <h2 className="text-white font-bold text-lg">{cleanName(opp.insured_name || opp.title)}</h2>
+            <div className="text-slate-400 text-sm mt-0.5">{opp.country} · {cleanRamo(opp.ramo)} · {fmtUSD(opp.limit_amount)} límite · Weight {fmtPct(opp.weight_percent)}</div>
           </div>
           <button onClick={onClose} className="text-slate-400 hover:text-white text-2xl leading-none">×</button>
         </div>
@@ -455,11 +473,11 @@ export default function Dashboard() {
                       <tr key={o.id} onClick={() => setSelectedOpp(o)}
                         className={`border-b border-slate-700/50 hover:bg-slate-700/40 transition cursor-pointer ${i % 2 === 0 ? '' : 'bg-slate-800/20'}`}>
                         <td className="px-4 py-3">
-                          <div className="text-white font-medium text-sm">{o.insured_name || o.title}</div>
+                          <div className="text-white font-medium text-sm">{cleanName(o.insured_name || o.title)}</div>
                           <div className="text-slate-500 text-xs">{o.country}</div>
                         </td>
                         <td className="px-4 py-3">
-                          <span className="text-slate-300 text-xs bg-slate-700/50 px-2 py-0.5 rounded">{o.ramo || '—'}</span>
+                          <span className="text-slate-300 text-xs bg-slate-700/50 px-2 py-0.5 rounded">{cleanRamo(o.ramo)}</span>
                         </td>
                         <td className="px-4 py-3 text-slate-300 text-xs">{fmtUSD(o.limit_amount)}</td>
                         <td className="px-4 py-3">
