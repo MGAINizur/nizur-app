@@ -371,7 +371,6 @@ export default function Dashboard() {
   useEffect(() => {
     const supabase = createClient()
     Promise.all([
-      // Query opportunities directly (view has RLS auth.uid() issue)
       supabase.from('opportunities')
         .select(`
           id, title, stage, weight_percent, weighted_revenue,
@@ -383,8 +382,7 @@ export default function Dashboard() {
           submissions ( source_email )
         `)
         .order('last_activity_at', { ascending: false }),
-      supabase.from('pipeline_kpis_view').select('*').limit(1).single(),
-    ]).then(([{ data: rawOpps, error: e1 }, { data: k }]) => {
+    ]).then(([{ data: rawOpps, error: e1 }]) => {
       if (e1) console.error('opps error:', e1)
       // Normalize joined data
       const opps = ((rawOpps || []) as any[]).map((o: any) => ({
@@ -401,6 +399,20 @@ export default function Dashboard() {
         quotes_count: 0,
       }))
       setOpportunities(opps)
+      // Calculate KPIs from the data directly (avoid RLS issue with kpis view)
+      const now = Date.now()
+      const k: KPIs = {
+        total: opps.length,
+        intake: opps.filter((o: any) => o.stage === 'intake').length,
+        en_proceso: opps.filter((o: any) => ['submission_preparation','marketed','quoted','negotiation'].includes(o.stage)).length,
+        ganados_o_cerrados: opps.filter((o: any) => ['bound','documentation','invoiced','closed'].includes(o.stage)).length,
+        perdidos: opps.filter((o: any) => o.stage === 'lost').length,
+        sin_mov_mas_3_dias: opps.filter((o: any) => o.days_without_movement > 3 && !['closed','lost'].includes(o.stage)).length,
+        deadline_menos_7_dias: opps.filter((o: any) => o.deadline_at && new Date(o.deadline_at).getTime() <= now + 7*86400000 && !['closed','lost'].includes(o.stage)).length,
+        prima_estimada_total: opps.reduce((s: number, o: any) => s + (o.estimated_premium || 0), 0),
+        brokerage_estimado_total: opps.reduce((s: number, o: any) => s + (o.brokerage_estimated || 0), 0),
+        revenue_ponderado_total: opps.reduce((s: number, o: any) => s + (o.weighted_revenue || 0), 0),
+      }
       setKpis(k)
       setLoading(false)
     })
