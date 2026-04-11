@@ -17,6 +17,8 @@ type Opportunity = {
   limit_amount: number
   estimated_premium: number
   brokerage_estimated: number
+  orden_percent: number
+  prima_orden: number
   weight_percent: number
   weighted_revenue: number
   policy_start: string
@@ -296,9 +298,9 @@ function OpportunityModal({ opp, onClose }: { opp: Opportunity, onClose: () => v
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                     {[
                       { label: 'TIV / Límite', value: fmtUSD(opp.limit_amount) },
-                      { label: 'Prima estimada', value: fmtUSD(opp.estimated_premium), color: 'text-green-400' },
-                      { label: 'Brokerage est.', value: fmtUSD(opp.brokerage_estimated), color: 'text-emerald-400' },
-                      { label: 'Revenue pond.', value: fmtUSD(opp.weighted_revenue), color: 'text-violet-400' },
+                      { label: 'Prima total', value: fmtUSD(opp.estimated_premium) },
+                      { label: `Orden ${fmtPct(opp.orden_percent)}`, value: fmtUSD(opp.prima_orden), color: 'text-green-400' },
+                      { label: 'Brokerage s/orden', value: fmtUSD(opp.prima_orden ? opp.prima_orden * 0.07 : opp.brokerage_estimated), color: 'text-emerald-400' },
                     ].map(m => (
                       <div key={m.label} className="bg-slate-800 rounded-xl p-3">
                         <div className={`font-bold text-base ${(m as any).color || 'text-white'}`}>{m.value}</div>
@@ -454,6 +456,7 @@ export default function Dashboard() {
       .select(`
         id, title, stage, weight_percent, weighted_revenue,
         limit_amount, estimated_premium, brokerage_estimated,
+        orden_percent, prima_orden,
         policy_start, policy_end, deadline_at, priority_score,
         created_at, updated_at, last_activity_at, company_id, submission_id,
         ramo, category
@@ -474,6 +477,8 @@ export default function Dashboard() {
       country: null,
       currency: 'USD',
       owner_name: null,
+      orden_percent: o.orden_percent ?? 10,
+      prima_orden: o.prima_orden ?? 0,
       days_without_movement: o.last_activity_at
         ? Math.floor((Date.now() - new Date(o.last_activity_at).getTime()) / 86400000)
         : 0,
@@ -624,7 +629,7 @@ export default function Dashboard() {
                 <table className="w-full min-w-[900px]">
                   <thead>
                     <tr className="border-b border-slate-700">
-                      {['Asegurado', 'Ramo', 'Límite', 'Prima', 'Brokerage', 'Weight', 'Brok×W', 'Gap', 'Deadline', 'Sin mov.', 'Estado'].map(h => (
+                      {['Asegurado', 'Ramo', 'Límite', 'Prima total', 'Orden %', 'Prima/Orden', 'Brokerage', 'Weight', 'Brok×W', 'Gap', 'Deadline', 'Sin mov.', 'Estado'].map(h => (
                         <th key={h} className="text-left text-slate-400 text-xs font-medium px-4 py-3">{h}</th>
                       ))}
                     </tr>
@@ -654,18 +659,26 @@ export default function Dashboard() {
                             <td className="px-4 py-3 text-slate-300 text-xs">{fmtUSD(o.limit_amount)}</td>
                             <td className="px-4 py-3">
                               {o.estimated_premium
-                                ? <span className="text-green-400 text-xs font-medium">{fmtUSD(o.estimated_premium)}</span>
+                                ? <span className="text-slate-300 text-xs">{fmtUSD(o.estimated_premium)}</span>
+                                : <span className="text-slate-600 text-xs">—</span>}
+                            </td>
+                            <td className="px-4 py-3">
+                              <span className="text-cyan-400 text-xs font-medium">{fmtPct(o.orden_percent)}</span>
+                            </td>
+                            <td className="px-4 py-3">
+                              {o.prima_orden
+                                ? <span className="text-green-400 text-xs font-medium">{fmtUSD(o.prima_orden)}</span>
                                 : <span className="text-slate-600 text-xs">—</span>}
                             </td>
                             <td className="px-4 py-3">
                               {o.brokerage_estimated
-                                ? <span className="text-emerald-400 text-xs">{fmtUSD(o.brokerage_estimated)}</span>
+                                ? <span className="text-emerald-400 text-xs">{fmtUSD(o.prima_orden ? o.prima_orden * 0.07 : o.brokerage_estimated)}</span>
                                 : <span className="text-slate-600 text-xs">—</span>}
                             </td>
                             <td className="px-4 py-3 text-slate-400 text-xs">{fmtPct(o.weight_percent)}</td>
                             <td className="px-4 py-3">
-                              {o.brokerage_estimated && o.weight_percent
-                                ? <span className="text-violet-400 text-xs font-medium">{fmtUSD(o.brokerage_estimated * o.weight_percent / 100)}</span>
+                              {o.prima_orden && o.weight_percent
+                                ? <span className="text-violet-400 text-xs font-medium">{fmtUSD(o.prima_orden * 0.07 * o.weight_percent / 100)}</span>
                                 : <span className="text-slate-600 text-xs">—</span>}
                             </td>
                             <td className="px-4 py-3">
