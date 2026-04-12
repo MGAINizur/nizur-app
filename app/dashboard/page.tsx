@@ -498,9 +498,9 @@ export default function Dashboard() {
       perdidos: opps.filter((o: any) => o.stage === 'lost').length,
       sin_mov_mas_3_dias: opps.filter((o: any) => o.days_without_movement > 3 && !['closed','lost'].includes(o.stage)).length,
       deadline_menos_7_dias: opps.filter((o: any) => o.deadline_at && new Date(o.deadline_at).getTime() <= now + 7*86400000 && !['closed','lost'].includes(o.stage)).length,
-      prima_estimada_total: opps.reduce((s: number, o: any) => s + (o.estimated_premium || 0), 0),
-      brokerage_estimado_total: opps.reduce((s: number, o: any) => s + (o.brokerage_estimated || 0), 0),
-      revenue_ponderado_total: opps.reduce((s: number, o: any) => s + (o.weighted_revenue || 0), 0),
+      prima_estimada_total: opps.reduce((s: number, o: any) => s + (o.prima_orden || 0), 0),
+      brokerage_estimado_total: opps.reduce((s: number, o: any) => s + ((o.prima_orden || 0) * 0.07), 0),
+      revenue_ponderado_total: opps.reduce((s: number, o: any) => s + ((o.prima_orden || 0) * 0.07 * (o.weight_percent || 0) / 100), 0),
     }
     setKpis(k)
     setLoading(false)
@@ -551,8 +551,8 @@ export default function Dashboard() {
                 <KpiCard label="Ganados" value={kpis.ganados_o_cerrados} color="text-green-400" delay={0.1} />
                 <KpiCard label="Sin mov. +3d" value={kpis.sin_mov_mas_3_dias} color="text-red-400" delay={0.15} />
                 <KpiCard label="Deadline <7d" value={kpis.deadline_menos_7_dias} color="text-orange-400" delay={0.2} />
-                <KpiCard label="Prima estimada" value={fmtUSD(kpis.prima_estimada_total)} color="text-cyan-400" small delay={0.25} />
-                <KpiCard label="Brokerage est." value={fmtUSD(kpis.brokerage_estimado_total)} color="text-emerald-400" small delay={0.3} />
+                <KpiCard label="Prima s/orden" value={fmtUSD(kpis.prima_estimada_total)} color="text-cyan-400" small delay={0.25} />
+                <KpiCard label="Brokerage s/orden" value={fmtUSD(kpis.brokerage_estimado_total)} color="text-emerald-400" small delay={0.3} />
                 <KpiCard label="Revenue pond." value={fmtUSD(kpis.revenue_ponderado_total)} color="text-violet-400" small delay={0.35} />
                 <KpiCard label="Perdidos" value={kpis.perdidos} color="text-slate-500" delay={0.4} />
                 <KpiCard label="Intake" value={kpis.intake} color="text-slate-400" delay={0.45} />
