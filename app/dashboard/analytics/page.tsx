@@ -69,7 +69,7 @@ export default function AnalyticsPage() {
     sb.auth.getSession().then(({ data: { session } }) => {
       if (!session) { setLoading(false); return }
       sb.from('opportunities')
-        .select('id, title, stage, ramo, estimated_premium, brokerage_estimated, weight_percent, weighted_revenue, limit_amount, last_activity_at')
+        .select('id, title, stage, ramo, estimated_premium, brokerage_estimated, orden_percent, prima_orden, weight_percent, weighted_revenue, limit_amount, last_activity_at')
         .then(({ data }) => {
           setOpps(data || [])
           setLoading(false)
@@ -93,11 +93,11 @@ export default function AnalyticsPage() {
   })
   const ramoData = Object.entries(ramoMap).map(([name, value]) => ({ name, value }))
 
-  // Brokerage by ramo bar
+  // Brokerage by ramo bar (7% sobre prima_orden)
   const brokerageByRamo: Record<string, number> = {}
   opps.forEach(o => {
     const ramo = (o.ramo || 'Otro').replace('Property OAR', 'Property')
-    brokerageByRamo[ramo] = (brokerageByRamo[ramo] || 0) + (o.brokerage_estimated || 0)
+    brokerageByRamo[ramo] = (brokerageByRamo[ramo] || 0) + ((o.prima_orden || 0) * 0.07)
   })
   const brokerageData = Object.entries(brokerageByRamo).map(([name, value]) => ({ name, value }))
 
@@ -105,7 +105,7 @@ export default function AnalyticsPage() {
   const stageData = stages.map(s => ({
     name: STAGE_LABELS[s],
     negocios: opps.filter(o => o.stage === s).length,
-    prima: opps.filter(o => o.stage === s).reduce((sum, o) => sum + (o.estimated_premium || 0), 0),
+    prima: opps.filter(o => o.stage === s).reduce((sum, o) => sum + (o.prima_orden || 0), 0),
   }))
 
   const PIE_COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#a855f7', '#06b6d4']
@@ -130,9 +130,9 @@ export default function AnalyticsPage() {
           {/* Summary cards */}
           <div className="grid grid-cols-3 gap-4">
             {[
-              { label: 'Prima estimada total', value: fmtUSD(opps.reduce((s, o) => s + (o.estimated_premium || 0), 0)), color: 'text-cyan-400' },
-              { label: 'Brokerage estimado', value: fmtUSD(opps.reduce((s, o) => s + (o.brokerage_estimated || 0), 0)), color: 'text-emerald-400' },
-              { label: 'Revenue ponderado', value: fmtUSD(opps.reduce((s, o) => s + (o.weighted_revenue || 0), 0)), color: 'text-violet-400' },
+              { label: 'Prima s/orden', value: fmtUSD(opps.reduce((s, o) => s + (o.prima_orden || 0), 0)), color: 'text-cyan-400' },
+              { label: 'Brokerage s/orden', value: fmtUSD(opps.reduce((s, o) => s + ((o.prima_orden || 0) * 0.07), 0)), color: 'text-emerald-400' },
+              { label: 'Revenue ponderado', value: fmtUSD(opps.reduce((s, o) => s + ((o.prima_orden || 0) * 0.07 * (o.weight_percent || 0) / 100), 0)), color: 'text-violet-400' },
             ].map((card, i) => (
               <motion.div
                 key={card.label}
