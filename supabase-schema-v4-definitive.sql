@@ -500,6 +500,7 @@ create table if not exists public.missing_information (
   blocks_quotation boolean not null default false,
   status public.missing_status_v4 not null default 'open',
   requested_from text,
+  is_placement_subjectivity boolean not null default false, -- TRUE = condicion del reasegurador (placement), FALSE = gap de datos del submission
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
   check (submission_id is not null or opportunity_id is not null)
