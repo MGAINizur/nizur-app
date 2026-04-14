@@ -12,11 +12,13 @@ type Opportunity = {
   stage: string
   ramo: string
   insured_name: string
-  country: string
+  country: string | null
   currency: string
   limit_amount: number
   estimated_premium: number
   brokerage_estimated: number
+  sum_insured: number | null
+  insured_id: string | null
   orden_percent: number
   prima_orden: number
   weight_percent: number
@@ -459,7 +461,8 @@ export default function Dashboard() {
         orden_percent, prima_orden,
         policy_start, policy_end, deadline_at, priority_score,
         created_at, updated_at, last_activity_at, company_id, submission_id,
-        ramo, category
+        ramo, category,
+        country, sum_insured, insured_id
       `)
       .order('last_activity_at', { ascending: false })
 
@@ -471,10 +474,49 @@ export default function Dashboard() {
 
     console.log('[dashboard] loaded opportunities:', rawOpps?.length, rawOpps?.[0])
 
+    // ── Fix 4: fetch document counts and missing_information open counts ──
+    const submissionIds = ((rawOpps || []) as any[])
+      .map((o: any) => o.submission_id)
+      .filter(Boolean)
+
+    // Map: submission_id → documents count
+    const docCountMap: Record<string, number> = {}
+    // Map: submission_id → missing open count
+    const missingCountMap: Record<string, number> = {}
+
+    if (submissionIds.length > 0) {
+      const { data: genDocs } = await supabase
+        .from('generated_outputs')
+        .select('submission_id')
+        .in('submission_id', submissionIds)
+      if (genDocs) {
+        for (const row of genDocs) {
+          if (row.submission_id) {
+            docCountMap[row.submission_id] = (docCountMap[row.submission_id] || 0) + 1
+          }
+        }
+      }
+
+      const { data: missingDocs } = await supabase
+        .from('missing_information')
+        .select('submission_id')
+        .in('submission_id', submissionIds)
+        .eq('status', 'open')
+      if (missingDocs) {
+        for (const row of missingDocs) {
+          if (row.submission_id) {
+            missingCountMap[row.submission_id] = (missingCountMap[row.submission_id] || 0) + 1
+          }
+        }
+      }
+    }
+
     const opps = ((rawOpps || []) as any[]).map((o: any) => ({
       ...o,
       insured_name: o.title,
-      country: null,
+      country: o.country ?? null,
+      sum_insured: o.sum_insured ?? null,
+      insured_id: o.insured_id ?? null,
       currency: 'USD',
       owner_name: null,
       orden_percent: o.orden_percent ?? 10,
@@ -482,8 +524,8 @@ export default function Dashboard() {
       days_without_movement: o.last_activity_at
         ? Math.floor((Date.now() - new Date(o.last_activity_at).getTime()) / 86400000)
         : 0,
-      documents_count: 0,
-      missing_open_count: 0,
+      documents_count: o.submission_id ? (docCountMap[o.submission_id] ?? 0) : 0,
+      missing_open_count: o.submission_id ? (missingCountMap[o.submission_id] ?? 0) : 0,
       quotes_count: 0,
     }))
 
