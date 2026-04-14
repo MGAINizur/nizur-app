@@ -539,9 +539,11 @@ export default function Dashboard() {
 
     if (submissionIds.length > 0) {
       const { data: genDocs } = await supabase
-        .from('generated_outputs')
+        .from('submission_documents')
         .select('submission_id')
         .in('submission_id', submissionIds)
+        .eq('doc_origin', 'generated_medivh')
+        .eq('is_current', true)
       if (genDocs) {
         for (const row of genDocs) {
           if (row.submission_id) {
