@@ -224,22 +224,37 @@ function KpiCard({ label, value, color, small, delay }: { label: string, value: 
 
 // ─── OPPORTUNITY MODAL ────────────────────────────────────────────────────────
 
+type SubmissionDetail = {
+  processing_status: string | null
+  processing_stage: string | null
+  extraction_confidence: number | null
+}
+
 function OpportunityModal({ opp, onClose }: { opp: Opportunity, onClose: () => void }) {
   const [quotes, setQuotes] = useState<Quote[]>([])
   const [markets, setMarkets] = useState<Record<string, Market>>({})
   const [activeTab, setActiveTab] = useState<'overview' | 'market_map' | 'docs'>('overview')
   const [loading, setLoading] = useState(true)
+  const [submissionDetail, setSubmissionDetail] = useState<SubmissionDetail | null>(null)
 
   useEffect(() => {
     const supabase = createClient()
-    Promise.all([
-      supabase.from('quotes').select('*').eq('opportunity_id', opp.id).order('quote_received_at', { ascending: false }),
-      supabase.from('markets').select('*'),
-    ]).then(([{ data: q }, { data: m }]) => {
+    const qPromise = supabase.from('quotes').select('*').eq('opportunity_id', opp.id).order('quote_received_at', { ascending: false })
+    const mPromise = supabase.from('markets').select('*')
+    // Lazy-fetch submission pipeline status if we have a submission_id
+    const subPromise = opp.submission_id
+      ? supabase.from('submissions')
+          .select('processing_status, processing_stage, extraction_confidence')
+          .eq('id', opp.submission_id)
+          .limit(1)
+          .maybeSingle()
+      : Promise.resolve({ data: null, error: null })
+    Promise.all([qPromise, mPromise, subPromise]).then(([{ data: q }, { data: m }, { data: subData }]) => {
       setQuotes(q || [])
       const mMap: Record<string, Market> = {}
       for (const market of m || []) mMap[market.id] = market
       setMarkets(mMap)
+      if (subData) setSubmissionDetail(subData as SubmissionDetail)
       setLoading(false)
     })
   }, [opp.id])
@@ -329,6 +344,44 @@ function OpportunityModal({ opp, onClose }: { opp: Opportunity, onClose: () => v
                     <div className="bg-slate-800/60 rounded-xl p-4">
                       <div className="text-slate-300 text-sm font-medium mb-3">Placement Progress</div>
                       <PlacementGapBar quotes={quotes} />
+                    </div>
+                  )}
+                  {/* Pipeline status — sourced from submissions table */}
+                  {submissionDetail && (
+                    <div className="bg-slate-800/60 rounded-xl p-4 space-y-2 text-sm">
+                      <div className="text-slate-300 text-xs font-semibold uppercase tracking-wider mb-2">Pipeline Status</div>
+                      <div className="flex justify-between">
+                        <span className="text-slate-400">Estado</span>
+                        <span className={`font-medium ${
+                          submissionDetail.processing_status === 'completed' ? 'text-green-400' :
+                          submissionDetail.processing_status === 'failed' ? 'text-red-400' :
+                          submissionDetail.processing_status === 'processing' ? 'text-yellow-400' :
+                          'text-slate-400'
+                        }`}>
+                          {submissionDetail.processing_status || '—'}
+                        </span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-slate-400">Etapa</span>
+                        <span className="text-white">{submissionDetail.processing_stage || '—'}</span>
+                      </div>
+                      <div className="flex justify-between items-center">
+                        <span className="text-slate-400">Confianza extracción</span>
+                        {submissionDetail.extraction_confidence != null ? (
+                          <div className="flex items-center gap-2">
+                            <div className="w-20 h-1.5 bg-slate-700 rounded-full overflow-hidden">
+                              <div
+                                className={`h-full rounded-full ${
+                                  submissionDetail.extraction_confidence >= 80 ? 'bg-green-500' :
+                                  submissionDetail.extraction_confidence >= 50 ? 'bg-yellow-500' : 'bg-red-500'
+                                }`}
+                                style={{ width: `${submissionDetail.extraction_confidence}%` }}
+                              />
+                            </div>
+                            <span className="text-white text-xs">{submissionDetail.extraction_confidence}%</span>
+                          </div>
+                        ) : <span className="text-slate-500">—</span>}
+                      </div>
                     </div>
                   )}
                 </motion.div>
