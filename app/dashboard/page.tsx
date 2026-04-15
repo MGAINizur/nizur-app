@@ -74,6 +74,7 @@ type KPIs = {
 const STAGE_COLORS: Record<string, string> = {
   intake: 'bg-slate-500/20 text-slate-300 border-slate-500/30',
   submission_preparation: 'bg-blue-500/20 text-blue-300 border-blue-500/30',
+  quote_ready: 'bg-indigo-500/20 text-indigo-300 border-indigo-500/30',
   marketed: 'bg-cyan-500/20 text-cyan-300 border-cyan-500/30',
   quoted: 'bg-purple-500/20 text-purple-300 border-purple-500/30',
   negotiation: 'bg-yellow-500/20 text-yellow-300 border-yellow-500/30',
@@ -87,6 +88,7 @@ const STAGE_COLORS: Record<string, string> = {
 
 const STAGE_LABELS: Record<string, string> = {
   intake: 'Intake', submission_preparation: 'Preparando',
+  quote_ready: 'Quote Listo',
   marketed: 'En mercado', quoted: 'Cotizado', negotiation: 'Negociación',
   ordered: 'Orden firme', bound: 'Cerrado', documentation: 'Documentación',
   invoiced: 'Facturado', closed: 'Completado', lost: 'Perdido',
@@ -102,6 +104,7 @@ const STAGE_GROUPS = [
   { label: 'Todos', value: 'TODOS' },
   { label: 'Intake', value: 'intake' },
   { label: 'Preparando', value: 'submission_preparation' },
+  { label: 'Quote Listo', value: 'quote_ready' },
   { label: 'En mercado', value: 'marketed' },
   { label: 'Cotizado', value: 'quoted' },
   { label: 'Negociación', value: 'negotiation' },
@@ -144,7 +147,7 @@ function cleanRamo(ramo: string | null): string {
 // ─── MINI PIPELINE BAR ────────────────────────────────────────────────────────
 
 function PipelineBar({ opportunities }: { opportunities: Opportunity[] }) {
-  const stages = ['intake', 'submission_preparation', 'marketed', 'quoted', 'negotiation', 'ordered', 'bound']
+  const stages = ['intake', 'submission_preparation', 'quote_ready', 'marketed', 'quoted', 'negotiation', 'ordered', 'bound']
   const counts = stages.map(s => ({ stage: s, count: opportunities.filter(o => o.stage === s).length }))
   const max = Math.max(...counts.map(c => c.count), 1)
 
